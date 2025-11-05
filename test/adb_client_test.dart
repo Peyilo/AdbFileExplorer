@@ -1,6 +1,3 @@
-import 'dart:async';
-import 'dart:io';
-import 'package:adb_file_explorer/adb/models/adb_device.dart';
 import 'package:adb_file_explorer/adb/adb.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
