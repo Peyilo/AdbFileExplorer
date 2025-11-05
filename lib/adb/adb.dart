@@ -182,7 +182,15 @@ class AdbShellSession {
     // 写入命令
     _process.stdin.writeln(cmd);
 
-    return completer.future;
+    // 等待结果（最多 5 秒）
+    // TODO: 没有结束标记
+    return completer.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () {
+        sub?.cancel();
+        return buffer.toString().trim();
+      },
+    );
   }
 
   /// 关闭 session

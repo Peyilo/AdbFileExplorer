@@ -20,5 +20,17 @@ void main() {
         }
       }
     });
+    test('AdbShellSession should execute multiple commands with context', () async {
+      final shell = AdbShellSession(deviceSerial: 'emulator-5554');
+      await shell.start();
+
+      expect(shell.isReady, isTrue);
+
+      debugPrint('> Running ls...');
+      final pwd1 = await shell.sendCommand('ls');
+      debugPrint('PWD: $pwd1');
+
+      expect(shell.isReady, isFalse);
+    });
   });
 }
