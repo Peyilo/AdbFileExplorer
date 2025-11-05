@@ -36,16 +36,18 @@ import 'dart:convert';
 // drwxr-xr-x  12 root   shell      219 2009-01-01 00:00 vendor
 // drwxr-xr-x   2 root   root        42 2009-01-01 00:00 vendor_dlkm
 
+import 'dart:convert';
+
 class FileEntry {
-  final String name;          // 文件名
-  final String path;          // 完整路径，例如 /sdcard/Download
-  final String type;          // file / dir / symlink / unknown
-  final String permissions;   // 权限字符串，如 drwxr-xr-x
-  final String owner;         // 所有者
-  final String group;         // 所属组
-  final int size;             // 文件大小
-  final String date;          // 修改时间
-  final String? linkTarget;   // 若为符号链接，则保存目标路径
+  String name;          // 文件名
+  String path;          // 完整路径，例如 /sdcard/Download
+  String type;          // file / dir / symlink / unknown
+  String permissions;   // 权限字符串，如 drwxr-xr-x
+  String owner;         // 所有者
+  String group;         // 所属组
+  int size;             // 文件大小
+  String date;          // 修改时间
+  FileEntry? linkTarget; // 若为符号链接，则保存目标对象（可能是文件或目录）
 
   FileEntry({
     required this.name,
@@ -59,6 +61,20 @@ class FileEntry {
     this.linkTarget,
   });
 
+  // 获取文件真实类型
+  String getResolvedType({Set<String>? visited}) {
+    if (type != 'symlink') return type;
+    // 初始化 visited 集合（防止循环引用）
+    visited ??= <String>{};
+    if (visited.contains(path)) {
+      return 'unknown'; // 检测到循环链接
+    }
+    visited.add(path);
+    if (linkTarget == null) return 'unknown';
+    if (linkTarget!.type == 'unknown' || linkTarget!.type.isEmpty) return 'unknown';
+    return linkTarget!.getResolvedType(visited: visited);
+  }
+
   Map<String, dynamic> toJson() => {
     "name": name,
     "path": path,
@@ -68,12 +84,10 @@ class FileEntry {
     "group": group,
     "size": size,
     "date": date,
-    "link": linkTarget,
+    "link": linkTarget?.toJson(),
   };
 
   /// 解析 adb shell "ls -l" 输出为文件列表
-  /// [currentPath] 当前所在目录
-  /// [excludeUnknown] = true 时过滤无法访问的项
   static List<FileEntry> parseLsOutput(
       String stdout,
       String currentPath, {
@@ -118,13 +132,25 @@ class FileEntry {
       final rawName = match.group(8)!;
 
       String name = rawName;
-      String? linkTarget;
+      FileEntry? linkTarget;
 
-      // 解析符号链接（格式：xxx -> yyy）
+      // 解析符号链接 (例如: sdcard -> /storage/self/primary)
       if (typeChar == 'l' && rawName.contains('->')) {
         final parts = rawName.split('->');
         name = parts[0].trim();
-        linkTarget = parts[1].trim();
+        final targetPath = parts[1].trim();
+
+        // 生成符号链接目标条目
+        linkTarget = FileEntry(
+          name: targetPath.split('/').last,
+          path: targetPath,
+          type: 'unknown', // 初始未知，可延后补全
+          permissions: '?????????',
+          owner: '?',
+          group: '?',
+          size: 0,
+          date: '',
+        );
       }
 
       final type = {
@@ -133,7 +159,6 @@ class FileEntry {
         'l': 'symlink',
       }[typeChar] ?? 'unknown';
 
-      // 过滤 unknown
       if (excludeUnknown && type == 'unknown') continue;
 
       final fullPath = _joinPath(currentPath, name);
@@ -156,6 +181,7 @@ class FileEntry {
 
   /// 拼接路径，避免多余的 "//"
   static String _joinPath(String parent, String child) {
+    if (child.startsWith('/')) return child;
     if (parent.endsWith('/')) return "$parent$child";
     return "$parent/$child";
   }
