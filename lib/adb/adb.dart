@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -116,4 +118,78 @@ class AdbClient {
 
   Future<void> rm(String path, {bool recursive = false}) async =>
       await shell('rm ${recursive ? "-rf" : "-f"} "$path"');
+}
+
+class AdbShellSession {
+  final String adbPath;
+  final String? deviceSerial;
+  late Process _process;
+  final _outputController = StreamController<String>.broadcast();
+
+  bool _isReady = false;
+  bool get isReady => _isReady;
+
+  AdbShellSession({this.adbPath = 'adb', this.deviceSerial});
+
+  /// 启动 adb shell 并保持连接
+  Future<void> start() async {
+    final args = [
+      if (deviceSerial != null) '-s',
+      if (deviceSerial != null) deviceSerial!,
+      'shell'
+    ];
+
+    _process = await Process.start(adbPath, args, mode: ProcessStartMode.normal);
+
+    // 监听输出
+    _process.stdout
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((line) {
+      _outputController.add(line);
+    });
+
+    _process.stderr
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((line) {
+      _outputController.add('ERR: $line');
+    });
+
+    _isReady = true;
+  }
+
+  /// 发送命令（保持上下文）
+  Future<String> sendCommand(String cmd) async {
+    if (!_isReady) throw Exception("ADB shell not started.");
+
+    final completer = Completer<String>();
+    final buffer = StringBuffer();
+    StreamSubscription<String>? sub;
+
+    sub = _outputController.stream.listen((line) {
+      // 简单过滤 adb shell 提示符
+      if (line.trim().endsWith(r'$') || line.trim().endsWith(r'#')) return;
+
+      buffer.writeln(line);
+      // 结束条件可根据命令输出模式调整
+      if (line.isEmpty || line.endsWith('\r')) {
+        completer.complete(buffer.toString().trim());
+        sub?.cancel();
+      }
+    });
+
+    // 写入命令
+    _process.stdin.writeln(cmd);
+
+    return completer.future;
+  }
+
+  /// 关闭 session
+  Future<void> close() async {
+    _process.stdin.writeln('exit');
+    _process.kill(ProcessSignal.sigterm);
+    await _outputController.close();
+    _isReady = false;
+  }
 }
