@@ -35,9 +35,6 @@ import 'dart:convert';
 // drwxrwx--x   2 shell  shell       40 2025-11-05 06:26 tmp
 // drwxr-xr-x  12 root   shell      219 2009-01-01 00:00 vendor
 // drwxr-xr-x   2 root   root        42 2009-01-01 00:00 vendor_dlkm
-
-import 'dart:convert';
-
 class FileEntry {
   String name;          // 文件名
   String path;          // 完整路径，例如 /sdcard/Download
