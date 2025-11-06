@@ -97,7 +97,7 @@ class FileEntry {
     final entries = <FileEntry>[];
 
     final regex = RegExp(
-      r'^([\-dlspcb?])([rwx\-]{9})\s+\d+\s+(\S+)\s+(\S+)\s+(\d+)\s+(\d{4}-\d{2}-\d{2}|\w{3}\s+\d{1,2})\s+([\d:]+)\s+(.+)$',
+      r'^([\-dlspcb?])([rwxXsStT\-]{9})\s+\d+\s+(\S+)\s+(\S+)\s+(\d+)\s+(\d{4}-\d{2}-\d{2}|\w{3}\s+\d{1,2})\s+([\d:]+)\s+(.+)$'
     );
 
     for (final line in lines) {

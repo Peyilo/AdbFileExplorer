@@ -73,14 +73,32 @@ class Adb {
     // 确定files中type为symlink的项的linkTarget
     final symlinks = files.where((f) => f.type == 'symlink' && f.linkTarget != null);
     for (final link in symlinks) {
-      final targetPath = link.linkTarget!.path;
+      final visited = <String>{};
+      var current = link;
 
-      // 用 ls -ld 查询目标类型（不跟随链接）
-      final targetOut = await run('ls -ld "$targetPath" 2>/dev/null || true');
-      final targetList = FileEntry.parseLsOutput(targetOut, path);
-      if (targetList.isNotEmpty) {
-        final targetEntry = targetList.first;
-        link.linkTarget = targetEntry;
+      while (true) {
+        // 用 ls -ld 查询目标类型（不跟随链接）
+        var targetPath = current.linkTarget!.path;
+        var targetOut = await run('ls -ld "$targetPath" 2>/dev/null || true');
+        var targetList = FileEntry.parseLsOutput(targetOut, path);
+        if (targetList.isNotEmpty) {
+          final targetEntry = targetList.first;
+          current.linkTarget = targetEntry;
+          if (targetEntry.type == 'symlink') {
+            if (visited.contains(targetEntry.path)) {
+              // 检测到循环引用，停止解析
+              break;
+            }
+            visited.add(targetEntry.path);
+            current = targetEntry;
+            continue;
+          } else {
+            // 目标不是链接，解析完成
+            break;
+          }
+        } else {
+          break;
+        }
       }
     }
 
